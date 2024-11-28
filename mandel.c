@@ -1,78 +1,106 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define WIDTH 1000
 #define HEIGHT 1000
+#define STRMAX 256
+
+struct render {
+    double xMin;
+    double xMax;
+
+    double yMin;
+    double yMax;
+
+    int height;
+    int width;
+
+    int maxIter;
+    int radius;
+
+    int **img;
+    char basename[STRMAX];
+
+};
 
 double map(int v, int imin, int imax, double omin, double omax);
 
 int main()
-{
-    int maxIter = 100;
-    int iter;
-
-    int radius = 2;
-
-    int h = HEIGHT;
-    int w = WIDTH;
+{       
     int px, py;
 
-    double xMin = -2.0;
-    double xMax = 0.48;
     double xn, x0;
-
-    double yMin = -1.24;
-    double yMax = 1.24;
     double yn, y0;
     double temp;
 
+    int iter;
+
     FILE *fout;
-    int **img = malloc(h * sizeof(int *));
+    char name[STRMAX];
+
     int i;
-    if (img == NULL) {
+
+    struct render set;
+    set.xMin = -2.0;
+    set.xMax = 0.48;
+    set.yMin = -1.24;
+    set.yMax = 1.24;
+
+    set.height = HEIGHT;
+    set.width = WIDTH;
+    set.maxIter = 100;
+    set.radius = 2;
+    set.img = malloc(set.height * sizeof(int *));
+    if (set.img == NULL) {
         fprintf(stderr, "Erreur : Allocation dynamique échouée pour img.\n");
         return 1;
     }
-    for (i = 0; i < h; i++) {
-        img[i] = malloc(w * sizeof(int));
-        if (img[i] == NULL) {
+    for (i = 0; i < set.height; i++) {
+        set.img[i] = malloc(set.width * sizeof(int));
+        if (set.img[i] == NULL) {
             fprintf(stderr, "Erreur : Allocation dynamique échouée pour img[%d].\n", i);
             return 1;
         }
     }
 
-    for (py = 0; py < h; py++) {
-        for (px = 0; px < w; px++) {
-            x0 = map(px, 0, w, xMin, xMax);
-            y0 = map(h - py, 0, h, yMin, yMax);
+    strcpy(set.basename, "mandel");
+
+
+    for (py = 0; py < set.height; py++) {
+        for (px = 0; px < set.width; px++) {
+            x0 = map(px, 0, set.width, set.xMin, set.xMax);
+            y0 = map(set.height - py, 0, set.height, set.yMin, set.yMax);
             xn = x0;
             yn = y0;
             iter = 0;
 
-            while (xn * xn + yn * yn < radius * radius && iter < maxIter) {
+            while (xn * xn + yn * yn < set.radius * set.radius && iter < set.maxIter) {
                 temp = xn * xn - yn * yn + x0;
                 yn = 2 * xn * yn + y0;
                 xn = temp;
                 iter++;
             }
-            img[py][px] = iter;
+            set.img[py][px] = iter;
         }
     }
 
-    fout = fopen("mandel.pbm", "w");
+    strcpy(name, set.basename);
+    strcat(name, ".pbm");
+    fout = fopen(name, "w");
     if (fout == NULL) {
         fprintf(stderr, "Erreur : Impossible d'ouvrir le fichier.\n");
         return 1;
     }
     fprintf(fout, "P1\n");
-    fprintf(fout, "#Image calculée avec %d itérations maximal.\n", maxIter);
-    fprintf(fout, "#Visualisé dans l'intervale [%f, %f] en x et [%f, %f] en y\n", xMin, xMax, yMin, yMax);
-    fprintf(fout, "%d %d\n", w, h);
+    fprintf(fout, "#Image calculée avec %d itérations maximal.\n", set.maxIter);
+    fprintf(fout, "#Visualisé dans l'intervale [%f, %f] en x et [%f, %f] en y\n", set.xMin, set.xMax, set.yMin, set.yMax);
+    fprintf(fout, "%d %d\n", set.width, set.height);
 
     iter = 1;
-    for (py = 0; py < h; py++) {
-        for (px = 0; px < w; px++) {
-            fprintf(fout, "%d ", img[py][px] == maxIter ? 0 : 1);
+    for (py = 0; py < set.width; py++) {
+        for (px = 0; px < set.width; px++) {
+            fprintf(fout, "%d ", set.img[py][px] == set.maxIter ? 0 : 1);
             if (iter++ == 70) {
                 fprintf(fout, "\n");
                 iter = 1;
@@ -82,10 +110,10 @@ int main()
 
     fclose(fout);
 
-    for (i = 0; i < h; i++) {
-        free(img[i]);
+    for (i = 0; i < set.height; i++) {
+        free(set.img[i]);
     }
-    free(img);
+    free(set.img);
 
     return 0;
 }
