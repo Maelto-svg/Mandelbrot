@@ -6,12 +6,21 @@
 #define HEIGHT 1000
 #define STRMAX 256
 
+struct camera {
+    double x;
+    double y;
+    double height;
+    double width;
+};
+
 struct render {
     double xMin;
     double xMax;
 
     double yMin;
     double yMax;
+
+    struct camera pov;
 
     int height;
     int width;
@@ -26,6 +35,7 @@ struct render {
 
 double map(int v, int imin, int imax, double omin, double omax);
 int render_init(struct render *set);
+void cam2rect(struct render *set, struct camera *pov);
 void render_image(struct render *set);
 int save_image_bw(struct render *set);
 int save_image_alt(struct render *set);
@@ -33,13 +43,20 @@ int save_image_alt(struct render *set);
 int main()
 {       
     int error;
+    struct camera pov;
     struct render set;
+    pov.x = -0.76;
+    pov.y = 0;
+    pov.height = 2.48;
+    pov.width = 2.48;
+
+    set.pov = pov;
     error = render_init(&set);
     if (error == 1){
         return 1;
     }
     render_image(&set);
-    error = save_image(&set);
+    error = save_image_bw(&set);
     return error;
 }
 
@@ -50,10 +67,7 @@ double map(int v, int imin, int imax, double omin, double omax)
 
 int render_init(struct render *set){
     int i;
-    set->xMin = -2.0;
-    set->xMax = 0.48;
-    set->yMin = -1.24;
-    set->yMax = 1.24;
+    cam2rect(set, &set->pov);
 
     set->height = HEIGHT;
     set->width = WIDTH;
@@ -73,6 +87,13 @@ int render_init(struct render *set){
     }
     strcpy(set->basename, "mandel");
     return 0;
+}
+
+void cam2rect(struct render *set, struct camera *pov){
+    set->xMin = pov->x - pov->width/2;
+    set->xMax = pov->x - pov->width/2;
+    set->yMin = pov->y - pov->height/2;
+    set->yMax = pov->y - pov->height/2;
 }
 
 void render_image(struct render *set){
