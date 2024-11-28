@@ -34,24 +34,18 @@ struct render {
 };
 
 double map(int v, int imin, int imax, double omin, double omax);
-int render_init(struct render *set);
+int render_init(struct render *set, int argc, char *argv[]);
 void cam2rect(struct render *set, struct camera *pov);
 void render_image(struct render *set);
 int save_image_bw(struct render *set);
 int save_image_alt(struct render *set);
+void print_render(struct render *set);
 
-int main()
+int main(int argc, char *argv[])
 {       
     int error;
-    struct camera pov;
     struct render set;
-    pov.x = -0.76;
-    pov.y = 0;
-    pov.height = 2.48;
-    pov.width = 2.48;
-
-    set.pov = pov;
-    error = render_init(&set);
+    error = render_init(&set, argc, argv);
     if (error == 1){
         return 1;
     }
@@ -65,13 +59,70 @@ double map(int v, int imin, int imax, double omin, double omax)
     return (double)(v - imin) / (imax - imin) * (omax - omin) + omin;
 }
 
-int render_init(struct render *set){
-    int i;
+int render_init(struct render *set, int argc, char *argv[]){
+    int iter = 100;
+    double x = -0.76;
+    double y = 0.0;
+    double width_cam = 2.48;
+    double height_cam = 2.48;
+    int width_im = WIDTH;
+    int height_im = HEIGHT;
+    char basename[STRMAX];
+    char *temp;
+    double tab[20];
+    int i = 0;
+    struct camera pov;
+    size_t length;
+
+    strcpy(basename, "mandel");
+    switch (argc)
+    {
+        case 5:
+            length = strlen(argv[4]);
+            if (length>STRMAX){
+                printf("Provided name for file is too long.");
+                return 2;
+            }
+            strcpy(basename,argv[4]);
+        case 4:
+            temp = strtok(argv[3], "x");
+            while (temp != NULL && i<20){
+                tab[i] = atol(temp);
+                temp = strtok(NULL, "x");
+                i++;
+            }
+
+            i=0;
+            width_im = tab[0];
+            height_im = tab[1];
+        case 3:
+            temp = strtok(argv[2], ",");
+            while (temp != NULL && i<20){
+                tab[i] = atof(temp);
+                temp = strtok(NULL, ",");
+                i++;
+            }
+            x = tab[0];
+            y = tab[1];
+            width_cam = tab[2];
+            height_cam = tab[3];
+        case 2:
+            iter = atol(argv[1]);
+            break;
+        default:
+            printf("Hello\n");
+    }
+    pov.x = x;
+    pov.y = y;
+    pov.height = height_cam;
+    pov.width = width_cam;
+    set->pov = pov;
+
     cam2rect(set, &set->pov);
 
-    set->height = HEIGHT;
-    set->width = WIDTH;
-    set->maxIter = 100;
+    set->height = height_im;
+    set->width = width_im;
+    set->maxIter = iter;
     set->radius = 2;
     set->img = malloc(set->height * sizeof(int *));
     if (set->img == NULL) {
@@ -85,15 +136,15 @@ int render_init(struct render *set){
             return 1;
         }
     }
-    strcpy(set->basename, "mandel");
+    strcpy(set->basename, basename);
     return 0;
 }
 
 void cam2rect(struct render *set, struct camera *pov){
     set->xMin = pov->x - pov->width/2;
-    set->xMax = pov->x - pov->width/2;
+    set->xMax = pov->x + pov->width/2;
     set->yMin = pov->y - pov->height/2;
-    set->yMax = pov->y - pov->height/2;
+    set->yMax = pov->y + pov->height/2;
 }
 
 void render_image(struct render *set){
@@ -203,4 +254,22 @@ int px, py;
     }
     free(set->img);
     return 0;
+}
+
+
+void print_render(struct render *set){
+        printf(
+        "Render:\n"
+        "xMin = %.2f, xMax = %.2f, yMin = %.2f, yMax = %.2f\n"
+        "Camera: x = %.2f, y = %.2f\n"
+        "Height = %d, Width = %d\n"
+        "Max Iterations = %d, Radius = %d\n"
+        "Basename = %s\n",
+        set->xMin, set->xMax,
+        set->yMin, set->yMax,
+        set->pov.x, set->pov.y,
+        set->height, set->width,
+        set->maxIter, set->radius,
+        set->basename
+    );
 }
