@@ -9,6 +9,11 @@
 #define WIDTH 1000
 #define HEIGHT 1000
 #define STRMAX 256
+#define BW 0
+#define BW_ALT 1
+#define GREY_ST 2
+#define GREY_SM 3
+#define RGB 4
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 struct camera {
     double x;
@@ -34,7 +39,8 @@ struct render {
 
     struct pixdiv *img;
     char basename[STRMAX];
-
+    
+    int type;
 };
 
 struct pixdiv
@@ -48,6 +54,9 @@ double map(int v, int imin, int imax, double omin, double omax);
 int render_init(struct render *set, int argc, char *argv[]);
 void cam2rect(struct render *set, struct camera *pov);
 void render_image(struct render *set);
+int image_init(struct render *set, int argc, char *argv[]);
+int setDefault(struct render *set);
+int loadConfig(struct render *set, char *config_file);
 int save_image_bw(struct render *set);
 int save_image_alt(struct render *set);
 int save_image_grey(struct render *set);
@@ -59,12 +68,31 @@ int main(int argc, char *argv[])
 {       
     int error;
     struct render set;
-    error = render_init(&set, argc, argv);
+    error = image_init(&set, argc, argv);
     if (error == 1){
         return 1;
     }
     render_image(&set);
-    error = save_image_rgb(&set);
+    switch (set.type){
+        case BW:
+            error = save_image_bw(&set);
+            break;
+        case BW_ALT:
+            error = save_image_alt(&set);
+            break;
+        case GREY_ST:
+            error = save_image_grey(&set);
+            break;
+        case GREY_SM:
+            error = save_image_grey_smoothed(&set);
+            break;
+        case RGB:
+            
+            error = save_image_rgb(&set);
+            break;
+        default:
+            break;
+    }
     return error;
 }
 
@@ -90,6 +118,146 @@ int endsWith(const char *str, const char *suffix) {
     return suf < suffix;
 }
 
+int image_init(struct render *set, int argc, char *argv[]){
+    int opt;
+    int err;
+    
+    if (argv[1][0] != '-') {
+        err = loadConfig(set, argv[1]);
+        if (err != 0){
+            fprintf(stderr, "Cannot load config, defaulting to base values");
+            err = setDefault(set);
+       }
+       return err;
+    }
+    if (argc>=1){
+        err = render_init(set, argc, argv);
+        return err;
+    }
+
+    err = setDefault(set);
+    return err;
+}
+
+int setDefault(struct render *set){
+    struct camera pov;
+    pov.x = -0.76;
+    pov.y = 0.0;
+    pov.width = 2.48;
+    pov.height = 2.48;
+
+    set->maxIter = 100;
+    set->height = HEIGHT;
+    set->width = WIDTH;
+    set->radius = 2;
+    set->type = 4;
+    
+    strcpy(set->basename, "mandel");
+    set->pov = pov;
+    cam2rect(set, &set->pov);
+
+    set->img = malloc(set->height * set->width * sizeof(struct pixdiv));
+    if (set->img == NULL) {
+        fprintf(stderr, "Erreur : Allocation dynamique échouée pour img.\n");
+        return 1;
+    }
+    return 0;
+}
+
+int loadConfig(struct render *set, char *config_file){
+    FILE *fout;
+    char name[STRMAX];
+    int height;
+    int width;
+    char type[STRMAX];
+    double x, y, cam_height, cam_width;
+    int maxIter;
+    int radius;
+
+    struct camera pov;
+    
+    fout = fopen(config_file, "r");
+
+    
+    if (fout == NULL) {
+        fprintf(stderr, "Erreur : Impossible d'ouvrir le fichier.\n");
+        return 1;
+    }
+
+    // Name
+    if (fscanf(fout, "%s", name) != 1){
+        fprintf(stderr, "No output name was found");
+        return 1;
+    }
+    
+    // Size
+    if (fscanf(fout, "%dx%d", &width, &height) != 2){
+        fprintf(stderr, "Error reading width and height found");
+        return 1;
+    }
+    // Type
+    if (fscanf(fout, "%s", type) != 1){
+        fprintf(stderr, "No output type was found");
+        return 1;
+    }
+
+    // Cam
+    if (fscanf(fout, "%lf,%lf,%lf,%lf", &x, &y, &cam_width, &cam_height) != 4){
+        fprintf(stderr, "No cam def was found");
+        return 1;
+    }
+    // iter
+    if (fscanf(fout, "%d", &maxIter) != 1){
+        fprintf(stderr, "No maxIter was found");
+        return 1;
+    }
+    // radius
+    if (fscanf(fout, "%d", &radius) != 1){
+        fprintf(stderr, "No radius was found");
+        return 1;
+    }
+    
+    set->radius = radius;
+    set->maxIter = maxIter;
+    set->height = height;
+    set->width = width;
+    strcpy(set->basename, name);
+    if (strcmp("bw", type)==0){
+        set->type = BW;
+    }
+    else if (strcmp("bw_altern", type)==0){
+        set->type = BW_ALT;
+    }
+    else if (strcmp("grey_st", type)==0){
+        set->type = GREY_ST;
+    }
+    else if (strcmp("grey_sm", type)==0){
+        set->type = GREY_SM;
+    }
+    else if (strcmp("rgb", type)==0){
+        set->type = RGB;
+    }
+    else{
+        fprintf(stderr, "Type is not following correct format");
+        return 1;
+    }
+    
+    pov.x=x;
+    pov.y=y;
+    pov.height=cam_height;
+    pov.width=cam_width;
+    set->pov = pov;
+    cam2rect(set, &set->pov);
+    
+    set->img = malloc(set->height * set->width * sizeof(struct pixdiv));
+    if (set->img == NULL) {
+        fprintf(stderr, "Erreur : Allocation dynamique échouée pour img.\n");
+        return 1;
+    }
+    return 0;
+
+}
+
 int render_init(struct render *set, int argc, char *argv[]){
     int iter = 100;
     double x = -0.76;
@@ -97,6 +265,7 @@ int render_init(struct render *set, int argc, char *argv[]){
     double width_cam = 2.48;
     double height_cam = 2.48;
     int width_im = WIDTH;
+    char type[STRMAX];
     int height_im = HEIGHT;
     char basename[STRMAX];
     char *temp;
@@ -108,7 +277,7 @@ int render_init(struct render *set, int argc, char *argv[]){
 
     strcpy(basename, "mandel");
 
-    while ((opt = getopt(argc, argv, "s:n:f:c:")) != -1)
+    while ((opt = getopt(argc, argv, "s:n:f:c:t:")) != -1)
     {
         switch (opt)
         {
@@ -147,8 +316,9 @@ int render_init(struct render *set, int argc, char *argv[]){
             width_cam = tab[2];
             height_cam = tab[3];
             break;
+        case 't':
+            type = optarg;
         default:
-            printf("Hello\n");
             break;
         }
     }
@@ -165,6 +335,7 @@ int render_init(struct render *set, int argc, char *argv[]){
     set->width = width_im;
     set->maxIter = iter;
     set->radius = 2;
+    set->type = RGB;
     set->img = malloc(set->height * set->width * sizeof(struct pixdiv));
     if (set->img == NULL) {
         fprintf(stderr, "Erreur : Allocation dynamique échouée pour img.\n");
@@ -172,6 +343,26 @@ int render_init(struct render *set, int argc, char *argv[]){
     }
 
     strcpy(set->basename, basename);
+
+    if (strcmp("bw", type)==0){
+        set->type = BW;
+    }
+    else if (strcmp("bw_altern", type)==0){
+        set->type = BW_ALT;
+    }
+    else if (strcmp("grey_st", type)==0){
+        set->type = GREY_ST;
+    }
+    else if (strcmp("grey_sm", type)==0){
+        set->type = GREY_SM;
+    }
+    else if (strcmp("rgb", type)==0){
+        set->type = RGB;
+    }
+    else{
+        fprintf(stderr, "Type is not following correct format");
+        return 1;
+    }
     return 0;
 }
 
@@ -243,7 +434,7 @@ int save_image_bw(struct render *set){
     fprintf(fout, "%d %d\n", set->width, set->height);
 
     iter = 1;
-    for (py = 0; py < set->width; py++) {
+    for (py = set->height-1; py>-1; py--) {
         for (px = 0; px < set->width; px++) {
             fprintf(fout, "%d ", set->img[py*set->width + px].iter == set->maxIter ? 0 : 1);
             if (iter++ == 70) {
@@ -280,7 +471,7 @@ int px, py;
     fprintf(fout, "%d %d\n", set->width, set->height);
 
     iter = 1;
-    for (py = 0; py < set->width; py++) {
+    for (py = set->height-1; py>-1; py--) {
         for (px = 0; px < set->width; px++) {
             fprintf(fout, "%d ", set->img[py*set->width + px].iter == set->maxIter || set->img[py*set->width + px].iter%2 == 1 ? 0 : 1);
             if (iter++ == 70) {
@@ -321,7 +512,7 @@ int save_image_grey(struct render *set){
     fprintf(fout, "255\n");
 
     iter = 1;
-    for (py = 0; py < set->width; py++) {
+    for (py = set->height-1; py>-1; py--) {
         for (px = 0; px < set->width; px++) {
             fprintf(fout, "%d ", (int) map(set->img[py*set->width + px].iter, 0, set->maxIter, 0.0, 255.0));
             if (iter++ == 70) {
@@ -365,7 +556,7 @@ int save_image_grey_smoothed(struct render *set){
     fprintf(fout, "255\n");
 
     i = 1;
-    for (py = 0; py < set->width; py++) {
+    for (py = set->height-1; py>-1; py--) {
         for (px = 0; px < set->width; px++) {
             if (set->img[py*set->width + px].iter == set->maxIter){
                 fprintf(fout, "255 ");
@@ -406,7 +597,7 @@ int save_image_rgb(struct render *set){
 
     struct color hsv;
     struct color rgb;
-
+    print_render(set);
     strcpy(name, set->basename);
     if (endsWith(name, ext) != 1){
         strcat(name, ".ppm");
@@ -423,7 +614,7 @@ int save_image_rgb(struct render *set){
     fprintf(fout, "255\n");
 
     i = 1;
-    for (py = 0; py < set->width; py++) {
+    for (py = set->height-1; py>-1; py--) {
         for (px = 0; px < set->width; px++) {
             if (set->img[py*set->width + px].iter == set->maxIter){
                 fprintf(fout, "255 255 255\n");
@@ -454,7 +645,7 @@ void print_render(struct render *set){
         printf(
         "Render:\n"
         "xMin = %.2f, xMax = %.2f, yMin = %.2f, yMax = %.2f\n"
-        "Camera: x = %.2f, y = %.2f\n"
+        "Camera: x = %.10f, y = %.10f\n"
         "Height = %d, Width = %d\n"
         "Max Iterations = %d, Radius = %d\n"
         "Basename = %s\n",
