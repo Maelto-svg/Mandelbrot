@@ -41,6 +41,7 @@ void cam2rect(struct render *set, struct camera *pov);
 void render_image(struct render *set);
 int save_image_bw(struct render *set);
 int save_image_alt(struct render *set);
+int save_image_grey(struct render *set);
 void print_render(struct render *set);
 
 int main(int argc, char *argv[])
@@ -52,7 +53,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     render_image(&set);
-    error = save_image_bw(&set);
+    error = save_image_grey(&set);
     return error;
 }
 
@@ -275,6 +276,48 @@ int px, py;
     free(set->img);
     return 0;
 }
+
+int save_image_grey(struct render *set){
+    int px, py;
+    int i;
+    int iter;
+
+    FILE *fout;
+    char name[STRMAX];
+    char *ext = ".pgm";
+
+    strcpy(name, set->basename);
+    if (endsWith(name, ext) != 1){
+        strcat(name, ".pgm");
+    }
+    fout = fopen(name, "w");
+    if (fout == NULL) {
+        fprintf(stderr, "Erreur : Impossible d'ouvrir le fichier.\n");
+        return 1;
+    }
+    fprintf(fout, "P2\n");
+    fprintf(fout, "#Image calculée avec %d itérations maximal.\n", set->maxIter);
+    fprintf(fout, "#Visualisé dans l'intervale [%f, %f] en x et [%f, %f] en y\n", set->xMin, set->xMax, set->yMin, set->yMax);
+    fprintf(fout, "%d %d\n", set->width, set->height);
+    fprintf(fout, "%d\n", set->maxIter);
+
+    iter = 1;
+    for (py = 0; py < set->width; py++) {
+        for (px = 0; px < set->width; px++) {
+            fprintf(fout, "%d ", (int) map(set->img[py*set->width + px], 0, set->maxIter, 0.0, 255.0));
+            if (iter++ == 70) {
+                fprintf(fout, "\n");
+                iter = 1;
+            }
+        }
+    }
+
+    fclose(fout);
+
+    free(set->img);
+    return 0;
+}
+
 
 void print_render(struct render *set){
         printf(
