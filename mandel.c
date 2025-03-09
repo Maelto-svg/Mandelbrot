@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+#include <unistd.h>
 
 #define WIDTH 1000
 #define HEIGHT 1000
@@ -59,6 +61,23 @@ double map(int v, int imin, int imax, double omin, double omax)
     return (double)(v - imin) / (imax - imin) * (omax - omin) + omin;
 }
 
+int endsWith(const char *str, const char *suffix) {
+    const char *s = str;
+    const char *suf = suffix;
+
+    while (*s) s++
+    while (*suf) suf++;
+
+    
+    while (s >= str && suf >= suffix) {
+        if (*s != *suf) return 0;
+        s--;
+        suf--;
+    }
+
+    return suf < suffix;
+}
+
 int render_init(struct render *set, int argc, char *argv[]){
     int iter = 100;
     double x = -0.76;
@@ -69,34 +88,43 @@ int render_init(struct render *set, int argc, char *argv[]){
     int height_im = HEIGHT;
     char basename[STRMAX];
     char *temp;
+    char opt;
     double tab[20];
     int i = 0;
     struct camera pov;
     size_t length;
 
     strcpy(basename, "mandel");
-    switch (argc)
+
+    while ((opt = getopt(argc, argv, "s:n:f:c:")) != -1)
     {
-        case 5:
-            length = strlen(argv[4]);
-            if (length>STRMAX){
-                printf("Provided name for file is too long.");
-                return 2;
-            }
-            strcpy(basename,argv[4]);
-        case 4:
-            temp = strtok(argv[3], "x");
+        switch (opt)
+        {
+        case 's':
+            i=0;
+            temp = strtok(optarg, "x");
             while (temp != NULL && i<20){
                 tab[i] = atol(temp);
                 temp = strtok(NULL, "x");
                 i++;
             }
-
-            i=0;
             width_im = tab[0];
             height_im = tab[1];
-        case 3:
-            temp = strtok(argv[2], ",");
+            break;
+        case 'n':
+            iter = atol(optarg);
+            break;
+        case 'f':
+            length = strlen(optarg);
+            if (length>STRMAX){
+                printf("Provided name for file is too long.");
+                return 2;
+            }
+            strcpy(basename,optarg);
+            break;
+        case 'c':
+            i = 0;
+            temp = strtok(optarg, ",");
             while (temp != NULL && i<20){
                 tab[i] = atof(temp);
                 temp = strtok(NULL, ",");
@@ -106,12 +134,13 @@ int render_init(struct render *set, int argc, char *argv[]){
             y = tab[1];
             width_cam = tab[2];
             height_cam = tab[3];
-        case 2:
-            iter = atol(argv[1]);
             break;
         default:
             printf("Hello\n");
+            break;
+        }
     }
+    
     pov.x = x;
     pov.y = y;
     pov.height = height_cam;
@@ -183,9 +212,12 @@ int save_image_bw(struct render *set){
 
     FILE *fout;
     char name[STRMAX];
+    char *ext = ".pbm";
 
     strcpy(name, set->basename);
-    strcat(name, ".pbm");
+    if (endsWith(name, ext) != 1){
+        strcat(name, ".pbm");
+    }
     fout = fopen(name, "w");
     if (fout == NULL) {
         fprintf(stderr, "Erreur : Impossible d'ouvrir le fichier.\n");
