@@ -30,7 +30,7 @@ struct render {
     int maxIter;
     int radius;
 
-    int **img;
+    int *img;
     char basename[STRMAX];
 
 };
@@ -65,7 +65,7 @@ int endsWith(const char *str, const char *suffix) {
     const char *s = str;
     const char *suf = suffix;
 
-    while (*s) s++
+    while (*s) s++;
     while (*suf) suf++;
 
     
@@ -103,7 +103,7 @@ int render_init(struct render *set, int argc, char *argv[]){
         case 's':
             i=0;
             temp = strtok(optarg, "x");
-            while (temp != NULL && i<20){
+            while (temp != NULL){
                 tab[i] = atol(temp);
                 temp = strtok(NULL, "x");
                 i++;
@@ -153,18 +153,12 @@ int render_init(struct render *set, int argc, char *argv[]){
     set->width = width_im;
     set->maxIter = iter;
     set->radius = 2;
-    set->img = malloc(set->height * sizeof(int *));
+    set->img = malloc(set->height * set->width * sizeof(int));
     if (set->img == NULL) {
         fprintf(stderr, "Erreur : Allocation dynamique échouée pour img.\n");
         return 1;
     }
-    for (i = 0; i < set->height; i++) {
-        set->img[i] = malloc(set->width * sizeof(int));
-        if (set->img[i] == NULL) {
-            fprintf(stderr, "Erreur : Allocation dynamique échouée pour img[%d].\n", i);
-            return 1;
-        }
-    }
+
     strcpy(set->basename, basename);
     return 0;
 }
@@ -200,7 +194,7 @@ void render_image(struct render *set){
                 xn = temp;
                 iter++;
             }
-            set->img[py][px] = iter;
+            set->img[py*set->width + px] = iter;
         }
     }
 }
@@ -231,7 +225,7 @@ int save_image_bw(struct render *set){
     iter = 1;
     for (py = 0; py < set->width; py++) {
         for (px = 0; px < set->width; px++) {
-            fprintf(fout, "%d ", set->img[py][px] == set->maxIter ? 0 : 1);
+            fprintf(fout, "%d ", set->img[py*set->width + px] == set->maxIter ? 0 : 1);
             if (iter++ == 70) {
                 fprintf(fout, "\n");
                 iter = 1;
@@ -241,9 +235,6 @@ int save_image_bw(struct render *set){
 
     fclose(fout);
 
-    for (i = 0; i < set->height; i++) {
-        free(set->img[i]);
-    }
     free(set->img);
     return 0;
 }
@@ -271,7 +262,7 @@ int px, py;
     iter = 1;
     for (py = 0; py < set->width; py++) {
         for (px = 0; px < set->width; px++) {
-            fprintf(fout, "%d ", set->img[py][px] == set->maxIter || set->img[py][px]%2 == 1 ? 0 : 1);
+            fprintf(fout, "%d ", set->img[py*set->width + px] == set->maxIter || set->img[py*set->width + px]%2 == 1 ? 0 : 1);
             if (iter++ == 70) {
                 fprintf(fout, "\n");
                 iter = 1;
@@ -281,13 +272,9 @@ int px, py;
 
     fclose(fout);
 
-    for (i = 0; i < set->height; i++) {
-        free(set->img[i]);
-    }
     free(set->img);
     return 0;
 }
-
 
 void print_render(struct render *set){
         printf(
