@@ -8,9 +8,9 @@ On linux you can run :
 ```bash
 ./mandel
 ```
-If it does not work or you are not on Linux, first run :
+If it does not work first run :
 ```bash
-gcc mandel.c -O2 -o mandel
+gcc mandel.c colors.c -o mandel -lm
 ```
 then
 ```bash
@@ -18,4 +18,4 @@ then
 ```
 # Output
 
-The program will output a `mandel.pbm` file. To view it you can use an app such as okular.
+The program will output a `mandel.{ext}` file. To view it you can use an app such as okular.

@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <math.h>
+#include "colors.h"
 
 #define WIDTH 1000
 #define HEIGHT 1000
@@ -51,6 +52,7 @@ int save_image_bw(struct render *set);
 int save_image_alt(struct render *set);
 int save_image_grey(struct render *set);
 int save_image_grey_smoothed(struct render *set);
+int save_image_rgb(struct render *set);
 void print_render(struct render *set);
 
 int main(int argc, char *argv[])
@@ -62,7 +64,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     render_image(&set);
-    error = save_image_grey_smoothed(&set);
+    error = save_image_rgb(&set);
     return error;
 }
 
@@ -380,6 +382,64 @@ int save_image_grey_smoothed(struct render *set){
             if (i++ == 70) {
                 fprintf(fout, "\n");
                 i = 1;
+            }
+        }
+    }
+
+    fclose(fout);
+
+    free(set->img);
+    return 0;
+}
+
+int save_image_rgb(struct render *set){
+    int px, py;
+    int i;
+    double grey;
+    double x;
+    double y;
+    int iter;
+
+    FILE *fout;
+    char name[STRMAX];
+    char *ext = ".ppm";
+
+    struct color hsv;
+    struct color rgb;
+
+    strcpy(name, set->basename);
+    if (endsWith(name, ext) != 1){
+        strcat(name, ".ppm");
+    }
+    fout = fopen(name, "w");
+    if (fout == NULL) {
+        fprintf(stderr, "Erreur : Impossible d'ouvrir le fichier.\n");
+        return 1;
+    }
+    fprintf(fout, "P3\n");
+    fprintf(fout, "#Image calculée avec %d itérations maximal.\n", set->maxIter);
+    fprintf(fout, "#Visualisé dans l'intervale [%f, %f] en x et [%f, %f] en y\n", set->xMin, set->xMax, set->yMin, set->yMax);
+    fprintf(fout, "%d %d\n", set->width, set->height);
+    fprintf(fout, "255\n");
+
+    i = 1;
+    for (py = 0; py < set->width; py++) {
+        for (px = 0; px < set->width; px++) {
+            if (set->img[py*set->width + px].iter == set->maxIter){
+                fprintf(fout, "255 255 255\n");
+            }
+            else{
+                x = set->img[py*set->width + px].x;
+                y = set->img[py*set->width + px].y;
+                iter = set->img[py*set->width + px].iter;
+                grey = 5 + iter - log(log(x*x + y*y)/log(2))/log(2);
+                grey = min(floor(512*grey/set->maxIter), 255);
+                
+                hsv.c1 = 360 * grey/set->maxIter;
+                hsv.c2 = 1;
+                hsv.c3 = 1;
+                hsv2rgb(&rgb, &hsv);
+                fprintf(fout,"%d %d %d\n", (int) rgb.c1, (int) rgb.c2, (int) rgb.c3);
             }
         }
     }
